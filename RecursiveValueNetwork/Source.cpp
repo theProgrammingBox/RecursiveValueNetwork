@@ -74,12 +74,12 @@ int main()
 
 	const int maxEpisodes = 1000;
 	const int maxSteps = 10;
-	const int batchSize = 100;
+	const int batchSize = 128;
 
 	const int inputSize = 2;
-	const int hiddenMemSize = 32;
+	const int hiddenMemSize = 64;
 	const int hiddenLayer1Size = 32;
-	const int hiddenLayer2Size = 32;
+	const int hiddenLayer2Size = 16;
 	const int outputSize = 1;
 
 	float x, y;
@@ -192,11 +192,8 @@ int main()
 			{
 				//printf("x: %f, y: %f, sqrDist: %f, output: %f\n", inputs[step * inputSize], inputs[step * inputSize + 1], sqrDistances[step], outputs[step * outputSize]);
 
-				float trueError = sqrDistances[step] - outputs[step * outputSize];
-				float absError = abs(trueError);
-				float error = log(absError + 1) * (trueError > 0 ? 1 : -1);
-				//printf("error: %f\n", error);
-				averageError += absError;
+				float error = sqrDistances[step] - outputs[step * outputSize];
+				averageError += abs(error);
 
 				outputGradients[step * outputSize] = error;
 
