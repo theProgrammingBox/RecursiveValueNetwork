@@ -62,6 +62,7 @@ int main()
 
 	const float alpha = 1;
 	const float beta = 0;
+	const float learningRate = 0.01f;
 
 	const float spawnRange = 10;
 	const float halfSpawnRange = spawnRange * 0.5f;
@@ -71,7 +72,7 @@ int main()
 	const float halfMoveRange = moveRange * 0.5f;
 	const float moveRangeScalar = moveRange / RAND_MAX;
 
-	const int maxEpisodes = 1;
+	const int maxEpisodes = 1000;
 	const int maxSteps = 10;
 
 	const int inputSize = 2;
@@ -93,13 +94,22 @@ int main()
 	float hiddenLayer2Weight[hiddenLayer2Size * hiddenLayer1Size];
 	float outputLayerWeight[outputSize * hiddenLayer2Size];
 
+	float inputGradients[inputSize * maxSteps];
+	float hiddenLayer1Gradients[hiddenLayer1Size * maxSteps];
+	float hiddenLayer2Gradients[hiddenLayer1Size * maxSteps];
+	float outputGradients[outputSize * maxSteps];
+
+	float hiddenLayer1WeightGradients[hiddenLayer1Size * inputSize];
+	float hiddenLayer2WeightGradients[hiddenLayer2Size * hiddenLayer1Size];
+	float outputLayerWeightGradients[outputSize * hiddenLayer2Size];
+
 	// weight initialization
 	for (int i = 0; i < hiddenLayer1Size * inputSize; ++i)
-		hiddenLayer1Weight[i] = (float)rand() / RAND_MAX / inputSize;
+		hiddenLayer1Weight[i] = ((float)rand() / RAND_MAX - 0.5) / inputSize;
 	for (int i = 0; i < hiddenLayer2Size * hiddenLayer1Size; ++i)
-		hiddenLayer2Weight[i] = (float)rand() / RAND_MAX / hiddenLayer1Size;
+		hiddenLayer2Weight[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenLayer1Size;
 	for (int i = 0; i < outputSize * hiddenLayer2Size; ++i)
-		outputLayerWeight[i] = (float)rand() / RAND_MAX / hiddenLayer2Size;
+		outputLayerWeight[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenLayer2Size;
 
 	//PrintMatrixf32(hiddenLayer1Weight, hiddenLayer1Size, inputSize, "hiddenLayer1Weight");
 
@@ -111,7 +121,8 @@ int main()
 		{
 			inputs[step * inputSize] = x;
 			inputs[step * inputSize + 1] = y;
-			sqrDistances[step] = x * x + y * y;
+			//sqrDistances[step] = x * x + y * y;
+			sqrDistances[step] = x + y;
 
 			//PrintMatrixf32(inputs + step * inputSize, 1, inputSize, "inputs");
 
@@ -161,11 +172,115 @@ int main()
 
 			//PrintMatrixf32(outputs + step * outputSize, 1, outputSize, "outputs");
 
-			printf("x: %f, y: %f, sqrDist: %f, output: %f\n", x, y, sqrDistances[step], outputs[step * outputSize]);
+			//printf("x: %f, y: %f, sqrDist: %f, output: %f\n", inputs[step * inputSize], inputs[step * inputSize + 1], sqrDistances[step], outputs[step * outputSize]);
 
 			x += rand() * moveRangeScalar - halfMoveRange;
 			y += rand() * moveRangeScalar - halfMoveRange;
 		}
+
+		float averageError = 0;
+		for (int step = maxSteps; step--;)
+		{
+			//printf("x: %f, y: %f, sqrDist: %f, output: %f\n", inputs[step * inputSize], inputs[step * inputSize + 1], sqrDistances[step], outputs[step * outputSize]);
+
+			float error = sqrDistances[step] - outputs[step * outputSize];
+			//printf("error: %f\n", error);
+			averageError += error;
+
+			outputGradients[step * outputSize] = error;
+
+			cpuSgemmStridedBatched
+			(
+				true, false,
+				hiddenLayer2Size, 1, outputSize,
+				&alpha,
+				outputLayerWeight, outputSize, 0,
+				outputGradients + step * outputSize, outputSize, 0,
+				&beta,
+				hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+				1
+			);
+
+			cpuSgemmStridedBatched
+			(
+				false, true,
+				outputSize, hiddenLayer2Size, 1,
+				&alpha,
+				outputGradients + step * outputSize, outputSize, 0,
+				hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+				&beta,
+				outputLayerWeightGradients, outputSize, 0,
+				1
+			);
+
+			cpuReluGradient(hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size);
+
+			//PrintMatrixf32(hiddenLayer2Gradients + step * hiddenLayer2Size, 1, hiddenLayer2Size, "hiddenLayer2Gradients");
+			//PrintMatrixf32(outputLayerWeightGradients, outputSize, hiddenLayer2Size, "outputLayerWeightGradients");
+
+			cpuSgemmStridedBatched
+			(
+				true, false,
+				hiddenLayer1Size, 1, hiddenLayer2Size,
+				&alpha,
+				hiddenLayer2Weight, hiddenLayer2Size, 0,
+				hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+				&beta,
+				hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+				1
+			);
+
+			cpuSgemmStridedBatched
+			(
+				false, true,
+				hiddenLayer2Size, hiddenLayer1Size, 1,
+				&alpha,
+				hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+				hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+				&beta,
+				hiddenLayer2WeightGradients, hiddenLayer2Size, 0,
+				1
+			);
+
+			cpuReluGradient(hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size);
+
+			//PrintMatrixf32(hiddenLayer1Gradients + step * hiddenLayer1Size, 1, hiddenLayer1Size, "hiddenLayer1Gradients");
+			//PrintMatrixf32(hiddenLayer2WeightGradients, hiddenLayer2Size, hiddenLayer1Size, "hiddenLayer2WeightGradients");
+
+			/*cpuSgemmStridedBatched
+			(
+				true, false,
+				inputSize, 1, hiddenLayer1Size,
+				&alpha,
+				hiddenLayer1Weight, hiddenLayer1Size, 0,
+				hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+				&beta,
+				inputGradients + step * inputSize, inputSize, 0,
+				1
+			);*/
+
+			cpuSgemmStridedBatched
+			(
+				false, true,
+				hiddenLayer1Size, inputSize, 1,
+				&alpha,
+				hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+				inputs + step * inputSize, inputSize, 0,
+				&beta,
+				hiddenLayer1WeightGradients, hiddenLayer1Size, 0,
+				1
+			);
+
+			//PrintMatrixf32(inputGradients + step * inputSize, 1, inputSize, "inputGradients");
+			//PrintMatrixf32(hiddenLayer1WeightGradients, hiddenLayer1Size, inputSize, "hiddenLayer1WeightGradients");
+		}
+
+		printf("averageError: %f\n", averageError / maxSteps);
+
+		// apply gradients
+		cpuSaxpy(outputSize * hiddenLayer2Size, learningRate, outputLayerWeightGradients, outputLayerWeight);
+		cpuSaxpy(hiddenLayer2Size * hiddenLayer1Size, learningRate, hiddenLayer2WeightGradients, hiddenLayer2Weight);
+		cpuSaxpy(hiddenLayer1Size * inputSize, learningRate, hiddenLayer1WeightGradients, hiddenLayer1Weight);
 	}
 
 	return 0;
