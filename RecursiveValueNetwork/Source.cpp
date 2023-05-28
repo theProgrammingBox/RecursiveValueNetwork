@@ -62,7 +62,7 @@ int main()
 
 	const float alpha = 1;
 	const float beta = 0;
-	const float learningRate = 0.01f;
+	const float learningRate = 0.001f;
 
 	const float spawnRange = 10;
 	const float halfSpawnRange = spawnRange * 0.5f;
@@ -74,6 +74,7 @@ int main()
 
 	const int maxEpisodes = 1000;
 	const int maxSteps = 10;
+	const int batchSize = 100;
 
 	const int inputSize = 2;
 	const int hiddenMemSize = 32;
@@ -115,182 +116,184 @@ int main()
 
 	for (int episode = 0; episode < maxEpisodes; ++episode)
 	{
-		x = rand() * spawnRangeScalar - halfSpawnRange;
-		y = rand() * spawnRangeScalar - halfSpawnRange;
-		for (int step = 0;step < maxSteps; ++step)
-		{
-			inputs[step * inputSize] = x;
-			inputs[step * inputSize + 1] = y;
-			//sqrDistances[step] = x * x + y * y;
-			sqrDistances[step] = x + y;
-
-			//PrintMatrixf32(inputs + step * inputSize, 1, inputSize, "inputs");
-
-			cpuSgemmStridedBatched
-			(
-				false, false,
-				hiddenLayer1Size, 1, inputSize,
-				&alpha,
-				hiddenLayer1Weight, hiddenLayer1Size, 0,
-				inputs + step * inputSize, inputSize, 0,
-				&beta,
-				hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size, 0,
-				1
-			);
-
-			//PrintMatrixf32(hiddenLayer1 + step * hiddenLayer1Size, 1, hiddenLayer1Size, "hiddenLayer1");
-
-			cpuRelu(hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size);
-
-			cpuSgemmStridedBatched
-			(
-				false, false,
-				hiddenLayer2Size, 1, hiddenLayer1Size,
-				&alpha,
-				hiddenLayer2Weight, hiddenLayer2Size, 0,
-				hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size, 0,
-				&beta,
-				hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size, 0,
-				1
-			);
-
-			//PrintMatrixf32(hiddenLayer2 + step * hiddenLayer2Size, 1, hiddenLayer2Size, "hiddenLayer2");
-
-			cpuRelu(hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size);
-
-			cpuSgemmStridedBatched
-			(
-				false, false,
-				outputSize, 1, hiddenLayer2Size,
-				&alpha,
-				outputLayerWeight, outputSize, 0,
-				hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size, 0,
-				&beta,
-				outputs + step * outputSize, outputSize, 0,
-				1
-			);
-
-			//PrintMatrixf32(outputs + step * outputSize, 1, outputSize, "outputs");
-
-			//printf("x: %f, y: %f, sqrDist: %f, output: %f\n", inputs[step * inputSize], inputs[step * inputSize + 1], sqrDistances[step], outputs[step * outputSize]);
-
-			x += rand() * moveRangeScalar - halfMoveRange;
-			y += rand() * moveRangeScalar - halfMoveRange;
-		}
-
 		float averageError = 0;
-		for (int step = maxSteps; step--;)
+
+		// reset all weight gradients
+		memset(hiddenLayer1WeightGradients, 0, hiddenLayer1Size * inputSize * sizeof(float));
+		memset(hiddenLayer2WeightGradients, 0, hiddenLayer2Size * hiddenLayer1Size * sizeof(float));
+		memset(outputLayerWeightGradients, 0, outputSize * hiddenLayer2Size * sizeof(float));
+
+		for (int batch = 0; batch < batchSize; ++batch)
 		{
-			//printf("x: %f, y: %f, sqrDist: %f, output: %f\n", inputs[step * inputSize], inputs[step * inputSize + 1], sqrDistances[step], outputs[step * outputSize]);
+			x = rand() * spawnRangeScalar - halfSpawnRange;
+			y = rand() * spawnRangeScalar - halfSpawnRange;
+			for (int step = 0; step < maxSteps; ++step)
+			{
+				inputs[step * inputSize] = x;
+				inputs[step * inputSize + 1] = y;
+				sqrDistances[step] = x * x + y * y;
+				//sqrDistances[step] = x + y;
 
-			float error = sqrDistances[step] - outputs[step * outputSize];
-			//printf("error: %f\n", error);
-			averageError += error;
+				//PrintMatrixf32(inputs + step * inputSize, 1, inputSize, "inputs");
 
-			outputGradients[step * outputSize] = error;
+				cpuSgemmStridedBatched
+				(
+					false, false,
+					hiddenLayer1Size, 1, inputSize,
+					&alpha,
+					hiddenLayer1Weight, hiddenLayer1Size, 0,
+					inputs + step * inputSize, inputSize, 0,
+					&beta,
+					hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+					1
+				);
 
-			cpuSgemmStridedBatched
-			(
-				true, false,
-				hiddenLayer2Size, 1, outputSize,
-				&alpha,
-				outputLayerWeight, outputSize, 0,
-				outputGradients + step * outputSize, outputSize, 0,
-				&beta,
-				hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
-				1
-			);
+				//PrintMatrixf32(hiddenLayer1 + step * hiddenLayer1Size, 1, hiddenLayer1Size, "hiddenLayer1");
 
-			cpuSgemmStridedBatched
-			(
-				false, true,
-				outputSize, hiddenLayer2Size, 1,
-				&alpha,
-				outputGradients + step * outputSize, outputSize, 0,
-				hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size, 0,
-				&beta,
-				outputLayerWeightGradients, outputSize, 0,
-				1
-			);
+				cpuRelu(hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size);
 
-			cpuReluGradient(hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size);
+				cpuSgemmStridedBatched
+				(
+					false, false,
+					hiddenLayer2Size, 1, hiddenLayer1Size,
+					&alpha,
+					hiddenLayer2Weight, hiddenLayer2Size, 0,
+					hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+					&beta,
+					hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+					1
+				);
 
-			//PrintMatrixf32(hiddenLayer2Gradients + step * hiddenLayer2Size, 1, hiddenLayer2Size, "hiddenLayer2Gradients");
-			//PrintMatrixf32(outputLayerWeightGradients, outputSize, hiddenLayer2Size, "outputLayerWeightGradients");
+				//PrintMatrixf32(hiddenLayer2 + step * hiddenLayer2Size, 1, hiddenLayer2Size, "hiddenLayer2");
 
-			cpuSgemmStridedBatched
-			(
-				true, false,
-				hiddenLayer1Size, 1, hiddenLayer2Size,
-				&alpha,
-				hiddenLayer2Weight, hiddenLayer2Size, 0,
-				hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
-				&beta,
-				hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
-				1
-			);
+				cpuRelu(hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size);
 
-			cpuSgemmStridedBatched
-			(
-				false, true,
-				hiddenLayer2Size, hiddenLayer1Size, 1,
-				&alpha,
-				hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
-				hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size, 0,
-				&beta,
-				hiddenLayer2WeightGradients, hiddenLayer2Size, 0,
-				1
-			);
+				cpuSgemmStridedBatched
+				(
+					false, false,
+					outputSize, 1, hiddenLayer2Size,
+					&alpha,
+					outputLayerWeight, outputSize, 0,
+					hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+					&beta,
+					outputs + step * outputSize, outputSize, 0,
+					1
+				);
 
-			cpuReluGradient(hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size);
+				//PrintMatrixf32(outputs + step * outputSize, 1, outputSize, "outputs");
 
-			//PrintMatrixf32(hiddenLayer1Gradients + step * hiddenLayer1Size, 1, hiddenLayer1Size, "hiddenLayer1Gradients");
-			//PrintMatrixf32(hiddenLayer2WeightGradients, hiddenLayer2Size, hiddenLayer1Size, "hiddenLayer2WeightGradients");
+				//printf("x: %f, y: %f, sqrDist: %f, output: %f\n", inputs[step * inputSize], inputs[step * inputSize + 1], sqrDistances[step], outputs[step * outputSize]);
 
-			/*cpuSgemmStridedBatched
-			(
-				true, false,
-				inputSize, 1, hiddenLayer1Size,
-				&alpha,
-				hiddenLayer1Weight, hiddenLayer1Size, 0,
-				hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
-				&beta,
-				inputGradients + step * inputSize, inputSize, 0,
-				1
-			);*/
+				x += rand() * moveRangeScalar - halfMoveRange;
+				y += rand() * moveRangeScalar - halfMoveRange;
+			}
 
-			cpuSgemmStridedBatched
-			(
-				false, true,
-				hiddenLayer1Size, inputSize, 1,
-				&alpha,
-				hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
-				inputs + step * inputSize, inputSize, 0,
-				&beta,
-				hiddenLayer1WeightGradients, hiddenLayer1Size, 0,
-				1
-			);
+			for (int step = maxSteps; step--;)
+			{
+				//printf("x: %f, y: %f, sqrDist: %f, output: %f\n", inputs[step * inputSize], inputs[step * inputSize + 1], sqrDistances[step], outputs[step * outputSize]);
 
-			//PrintMatrixf32(inputGradients + step * inputSize, 1, inputSize, "inputGradients");
-			//PrintMatrixf32(hiddenLayer1WeightGradients, hiddenLayer1Size, inputSize, "hiddenLayer1WeightGradients");
+				float trueError = sqrDistances[step] - outputs[step * outputSize];
+				float absError = abs(trueError);
+				float error = log(absError + 1) * (trueError > 0 ? 1 : -1);
+				//printf("error: %f\n", error);
+				averageError += absError;
+
+				outputGradients[step * outputSize] = error;
+
+				cpuSgemmStridedBatched
+				(
+					true, false,
+					hiddenLayer2Size, 1, outputSize,
+					&alpha,
+					outputLayerWeight, outputSize, 0,
+					outputGradients + step * outputSize, outputSize, 0,
+					&beta,
+					hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+					1
+				);
+
+				cpuSgemmStridedBatched
+				(
+					false, true,
+					outputSize, hiddenLayer2Size, 1,
+					&alpha,
+					outputGradients + step * outputSize, outputSize, 0,
+					hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+					&alpha,
+					outputLayerWeightGradients, outputSize, 0,
+					1
+				);
+
+				cpuReluGradient(hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2 + step * hiddenLayer2Size, hiddenLayer2Size);
+
+				//PrintMatrixf32(hiddenLayer2Gradients + step * hiddenLayer2Size, 1, hiddenLayer2Size, "hiddenLayer2Gradients");
+				//PrintMatrixf32(outputLayerWeightGradients, outputSize, hiddenLayer2Size, "outputLayerWeightGradients");
+
+				cpuSgemmStridedBatched
+				(
+					true, false,
+					hiddenLayer1Size, 1, hiddenLayer2Size,
+					&alpha,
+					hiddenLayer2Weight, hiddenLayer2Size, 0,
+					hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+					&beta,
+					hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+					1
+				);
+
+				cpuSgemmStridedBatched
+				(
+					false, true,
+					hiddenLayer2Size, hiddenLayer1Size, 1,
+					&alpha,
+					hiddenLayer2Gradients + step * hiddenLayer2Size, hiddenLayer2Size, 0,
+					hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+					&alpha,
+					hiddenLayer2WeightGradients, hiddenLayer2Size, 0,
+					1
+				);
+
+				cpuReluGradient(hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1 + step * hiddenLayer1Size, hiddenLayer1Size);
+
+				//PrintMatrixf32(hiddenLayer1Gradients + step * hiddenLayer1Size, 1, hiddenLayer1Size, "hiddenLayer1Gradients");
+				//PrintMatrixf32(hiddenLayer2WeightGradients, hiddenLayer2Size, hiddenLayer1Size, "hiddenLayer2WeightGradients");
+
+				/*cpuSgemmStridedBatched
+				(
+					true, false,
+					inputSize, 1, hiddenLayer1Size,
+					&alpha,
+					hiddenLayer1Weight, hiddenLayer1Size, 0,
+					hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+					&beta,
+					inputGradients + step * inputSize, inputSize, 0,
+					1
+				);*/
+
+				cpuSgemmStridedBatched
+				(
+					false, true,
+					hiddenLayer1Size, inputSize, 1,
+					&alpha,
+					hiddenLayer1Gradients + step * hiddenLayer1Size, hiddenLayer1Size, 0,
+					inputs + step * inputSize, inputSize, 0,
+					&alpha,
+					hiddenLayer1WeightGradients, hiddenLayer1Size, 0,
+					1
+				);
+
+				//PrintMatrixf32(inputGradients + step * inputSize, 1, inputSize, "inputGradients");
+				//PrintMatrixf32(hiddenLayer1WeightGradients, hiddenLayer1Size, inputSize, "hiddenLayer1WeightGradients");
+			}
 		}
 
-		printf("averageError: %f\n", averageError / maxSteps);
+		printf("averageError: %f\n", averageError / (maxSteps * batchSize));
 
 		// apply gradients
-		cpuSaxpy(outputSize * hiddenLayer2Size, learningRate, outputLayerWeightGradients, outputLayerWeight);
-		cpuSaxpy(hiddenLayer2Size * hiddenLayer1Size, learningRate, hiddenLayer2WeightGradients, hiddenLayer2Weight);
-		cpuSaxpy(hiddenLayer1Size * inputSize, learningRate, hiddenLayer1WeightGradients, hiddenLayer1Weight);
+		cpuSaxpy(outputSize * hiddenLayer2Size, learningRate / batchSize, outputLayerWeightGradients, outputLayerWeight);
+		cpuSaxpy(hiddenLayer2Size * hiddenLayer1Size, learningRate / batchSize, hiddenLayer2WeightGradients, hiddenLayer2Weight);
+		cpuSaxpy(hiddenLayer1Size * inputSize, learningRate / batchSize, hiddenLayer1WeightGradients, hiddenLayer1Weight);
 	}
 
 	return 0;
 }
-
-/*
-point = np.array([[3, 4]])  # note the double square brackets; this creates a 2D array
-squared_distance = model.predict(point)
-
-print(f"Point: {point}")
-print(f"Squared distance: {squared_distance}")
-print(f"Expected squared distance: {np.sum(point ** 2)}")
-*/
