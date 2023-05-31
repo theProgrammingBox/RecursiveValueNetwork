@@ -62,7 +62,11 @@ int main()
 
 	const float alpha = 1;
 	const float beta = 0;
-	const float learningRate = 0.001f;
+	const float learningRate = 1.0f;
+
+	const float beta1 = 0.9f;
+	const float beta2 = 0.999f;
+	const float epsilon = 1e-8f;
 
 	const float spawnRange = 10;
 	const float halfSpawnRange = spawnRange * 0.5f;
@@ -74,12 +78,12 @@ int main()
 
 	const int maxEpisodes = 1000;
 	const int maxSteps = 10;
-	const int batchSize = 128;
+	const int batchSize = 32;
 
+	const int hiddenMemSize = 16;
 	const int inputSize = 2;
-	const int hiddenMemSize = 64;
-	const int hiddenLayer1Size = 32;
-	const int hiddenLayer2Size = 16;
+	const int hiddenLayer1Size = 64;
+	const int hiddenLayer2Size = 32;
 	const int outputSize = 1;
 
 	float x, y;
@@ -104,6 +108,26 @@ int main()
 	float hiddenLayer2WeightGradients[hiddenLayer2Size * hiddenLayer1Size];
 	float outputLayerWeightGradients[outputSize * hiddenLayer2Size];
 
+	float exponentiallyDecayedMean = 1;
+	float exponentiallyDecayedVariance = 1;
+
+	float hiddenLayer1WeightGradientMean[hiddenLayer1Size * inputSize];
+	float hiddenLayer2WeightGradientMean[hiddenLayer2Size * hiddenLayer1Size];
+	float outputLayerWeightGradientMean[outputSize * hiddenLayer2Size];
+
+	float hiddenLayer1WeightGradientVariance[hiddenLayer1Size * inputSize];
+	float hiddenLayer2WeightGradientVariance[hiddenLayer2Size * hiddenLayer1Size];
+	float outputLayerWeightGradientVariance[outputSize * hiddenLayer2Size];
+
+	// set gradients mean/varience to 0
+	memset(hiddenLayer1WeightGradientMean, 0, hiddenLayer1Size * inputSize * sizeof(float));
+	memset(hiddenLayer2WeightGradientMean, 0, hiddenLayer2Size * hiddenLayer1Size * sizeof(float));
+	memset(outputLayerWeightGradientMean, 0, outputSize * hiddenLayer2Size * sizeof(float));
+
+	memset(hiddenLayer1WeightGradientVariance, 0, hiddenLayer1Size * inputSize * sizeof(float));
+	memset(hiddenLayer2WeightGradientVariance, 0, hiddenLayer2Size * hiddenLayer1Size * sizeof(float));
+	memset(outputLayerWeightGradientVariance, 0, outputSize * hiddenLayer2Size * sizeof(float));
+
 	// weight initialization
 	for (int i = 0; i < hiddenLayer1Size * inputSize; ++i)
 		hiddenLayer1Weight[i] = ((float)rand() / RAND_MAX - 0.5) / inputSize;
@@ -118,6 +142,9 @@ int main()
 	{
 		float averageError = 0;
 
+		exponentiallyDecayedMean *= beta1;
+		exponentiallyDecayedVariance *= beta2;
+
 		// reset all weight gradients
 		memset(hiddenLayer1WeightGradients, 0, hiddenLayer1Size * inputSize * sizeof(float));
 		memset(hiddenLayer2WeightGradients, 0, hiddenLayer2Size * hiddenLayer1Size * sizeof(float));
@@ -127,6 +154,7 @@ int main()
 		{
 			x = rand() * spawnRangeScalar - halfSpawnRange;
 			y = rand() * spawnRangeScalar - halfSpawnRange;
+
 			for (int step = 0; step < maxSteps; ++step)
 			{
 				inputs[step * inputSize] = x;
@@ -286,10 +314,18 @@ int main()
 
 		printf("averageError: %f\n", averageError / (maxSteps * batchSize));
 
-		// apply gradients
-		cpuSaxpy(outputSize * hiddenLayer2Size, learningRate / batchSize, outputLayerWeightGradients, outputLayerWeight);
-		cpuSaxpy(hiddenLayer2Size * hiddenLayer1Size, learningRate / batchSize, hiddenLayer2WeightGradients, hiddenLayer2Weight);
-		cpuSaxpy(hiddenLayer1Size * inputSize, learningRate / batchSize, hiddenLayer1WeightGradients, hiddenLayer1Weight);
+		// for every weight, calculate the mean/varience gradient
+		for (int i = 0; i < outputSize * hiddenLayer2Size; i++)
+		{
+			float gradient = outputLayerWeightGradients[i] / (maxSteps * batchSize);
+			outputLayerWeightGradientMean[i] = beta1 * outputLayerWeightGradientMean[i] + (1 - beta1) * gradient;
+			outputLayerWeightGradientVariance[i] = beta2 * outputLayerWeightGradientVariance[i] + (1 - beta2) * gradient * gradient;
+
+			float correctedMean = outputLayerWeightGradientMean[i] / (1 - exponentiallyDecayedMean);
+			float correctedVariance = outputLayerWeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
+
+			outputLayerWeight[i] += learningRate * correctedMean / (sqrt(correctedVariance) + epsilon);
+		}
 	}
 
 	return 0;
