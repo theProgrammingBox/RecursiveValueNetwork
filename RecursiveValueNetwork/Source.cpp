@@ -68,9 +68,9 @@ int main()
 {
 	srand(time(nullptr));
 
-	const float alpha = 0.001f;
+	const float alpha = 1;
 	const float beta = 0;
-	const float learningRate = 1.0f;
+	const float learningRate = 0.001f;
 
 	const float beta1 = 0.9f;
 	const float beta2 = 0.999f;
@@ -84,12 +84,12 @@ int main()
 	const float halfMoveRange = moveRange * 0.5f;
 	const float moveRangeScalar = moveRange / RAND_MAX;
 
-	const int maxEpisodes = 10000;
-	const int maxSteps = 8;
-	const int batchSize = 32;
+	const int maxEpisodes = 1000;
+	const int maxSteps = 16;
+	const int batchSize = 64;
 	const int numInputs = 2;
 	const int numOutputs = 1;
-	const int hiddenMemSize = 1;
+	const int hiddenMemSize = 2;
 
 	const int inputSize = numInputs + hiddenMemSize;
 	const int hiddenLayer1Size = 64;
@@ -181,7 +181,7 @@ int main()
 				sqrDistances[step] = x * x + y * y;
 				//sqrDistances[step] = x + y;
 
-				/*if (step == 0)
+				/**/if (step == 0)
 				{
 					// set the extra inputs to hiddenMemParam
 					memcpy(inputs + numInputs, hiddenMemParam, hiddenMemSize * sizeof(float));
@@ -190,11 +190,11 @@ int main()
 				{
 					// set the extra inputs to the previous output
 					memcpy(inputs + step * inputSize + numInputs, outputs + (step - 1) * outputSize + numOutputs, hiddenMemSize * sizeof(float));
-				}*/
+				}
 				
 				// set the extra inputs to 0
 				//memset(inputs + step * inputSize + numInputs, 0, hiddenMemSize * sizeof(float));
-				*(inputs + step * inputSize + numInputs) = 100;
+				//*(inputs + step * inputSize + numInputs) = 100;
 
 				//PrintMatrixf32(inputs + step * inputSize, 1, inputSize, "inputs");
 
@@ -259,7 +259,7 @@ int main()
 
 				outputGradients[step * outputSize] = error;
 
-				/*if (step + 1 == maxSteps)
+				/**/if (step + 1 == maxSteps)
 				{
 					// set the extra output gradients to 0
 					memset(outputGradients + step * outputSize + numOutputs, 0, hiddenMemSize * sizeof(float));
@@ -268,10 +268,10 @@ int main()
 				{
 					// set the extra output gradients to the previous input gradients
 					memcpy(outputGradients + step * outputSize + numOutputs, inputGradients + (step + 1) * inputSize + numInputs, hiddenMemSize * sizeof(float));
-				}*/
+				}
 
 				// set the extra output gradients to 0
-				memset(outputGradients + step * outputSize + numOutputs, 0, hiddenMemSize * sizeof(float));
+				//memset(outputGradients + step * outputSize + numOutputs, 0, hiddenMemSize * sizeof(float));
 
 				cpuSgemmStridedBatched
 				(
@@ -398,3 +398,12 @@ int main()
 
 	return 0;
 }
+
+/*
+- Given Latent Representation, observation, and random vector, make an action	()
+- Given Latent Representation and action, change the latent representation		()
+- Given Latent Representation, predict reward									(sparse matrix)
+- Given Latent Representation, predict next observation							(sparse matrix)
+
+- inputs should be emply shells that accepts existing nodes
+*/
