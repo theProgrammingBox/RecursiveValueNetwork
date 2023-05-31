@@ -1,5 +1,12 @@
 #include <iostream>
 
+/*
+Important Lessons:
+- for deeper or more iterations in rnns, use larger batchsizes and smaller learning rates
+- not to sure if batchsize works because average usually decreases the variance of the gradients, sort of acting like smaller learning rates
+- more rnn iterations is basically like training a network with more layers
+*/
+
 void cpuSgemmStridedBatched(
 	bool transB, bool transA,
 	int CCols, int CRows, int AColsBRows,
@@ -70,7 +77,7 @@ int main()
 
 	const float alpha = 1;
 	const float beta = 0;
-	const float learningRate = 0.001f;
+	const float learningRate = 0.00004f;
 
 	const float beta1 = 0.9f;
 	const float beta2 = 0.999f;
@@ -86,10 +93,10 @@ int main()
 
 	const int maxEpisodes = 1000;
 	const int maxSteps = 16;
-	const int batchSize = 64;
+	const int batchSize = 80;
 	const int numInputs = 2;
 	const int numOutputs = 1;
-	const int hiddenMemSize = 2;
+	const int hiddenMemSize = 8;
 
 	const int inputSize = numInputs + hiddenMemSize;
 	const int hiddenLayer1Size = 64;
