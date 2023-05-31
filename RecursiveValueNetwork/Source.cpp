@@ -68,7 +68,7 @@ int main()
 {
 	srand(time(nullptr));
 
-	const float alpha = 0.01f;
+	const float alpha = 0.001f;
 	const float beta = 0;
 	const float learningRate = 1.0f;
 
@@ -84,12 +84,12 @@ int main()
 	const float halfMoveRange = moveRange * 0.5f;
 	const float moveRangeScalar = moveRange / RAND_MAX;
 
-	const int maxEpisodes = 1000;
-	const int maxSteps = 10;
+	const int maxEpisodes = 10000;
+	const int maxSteps = 8;
 	const int batchSize = 32;
 	const int numInputs = 2;
 	const int numOutputs = 1;
-	const int hiddenMemSize = 16;
+	const int hiddenMemSize = 1;
 
 	const int inputSize = numInputs + hiddenMemSize;
 	const int hiddenLayer1Size = 64;
@@ -99,7 +99,6 @@ int main()
 	float x, y;
 	float sqrDistances[maxSteps];
 	float hiddenMemParam[hiddenMemSize];
-	float hiddenMem[hiddenMemSize * maxSteps];
 	float inputs[inputSize * maxSteps];
 	float hiddenLayer1[hiddenLayer1Size * maxSteps];
 	float hiddenLayer2[hiddenLayer1Size * maxSteps];
@@ -109,6 +108,7 @@ int main()
 	float hiddenLayer2Weight[hiddenLayer2Size * hiddenLayer1Size];
 	float outputLayerWeight[outputSize * hiddenLayer2Size];
 
+	float hiddenMemParamGradients[hiddenMemSize];
 	float inputGradients[inputSize * maxSteps];
 	float hiddenLayer1Gradients[hiddenLayer1Size * maxSteps];
 	float hiddenLayer2Gradients[hiddenLayer1Size * maxSteps];
@@ -139,12 +139,20 @@ int main()
 	memset(outputLayerWeightGradientVariance, 0, outputSize * hiddenLayer2Size * sizeof(float));
 
 	// weight initialization
-	for (int i = 0; i < hiddenLayer1Size * inputSize; ++i)
-		hiddenLayer1Weight[i] = ((float)rand() / RAND_MAX - 0.5) / inputSize;
-	for (int i = 0; i < hiddenLayer2Size * hiddenLayer1Size; ++i)
-		hiddenLayer2Weight[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenLayer1Size;
-	for (int i = 0; i < outputSize * hiddenLayer2Size; ++i)
-		outputLayerWeight[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenLayer2Size;
+	for (int i = 0; i < inputSize; ++i)
+		for (int j = 0; j < hiddenLayer1Size; ++j)
+			hiddenLayer1Weight[i * hiddenLayer1Size + j] = (i == j) * ((rand() & 2) - 1) + ((float)rand() / RAND_MAX * 0.2 - 0.1) / inputSize;
+
+	for (int i = 0; i < hiddenLayer1Size; ++i)
+		for (int j = 0; j < hiddenLayer2Size; ++j)
+			hiddenLayer2Weight[i * hiddenLayer2Size + j] = (i == j) * ((rand() & 2) - 1) + ((float)rand() / RAND_MAX * 0.2 - 0.1) / hiddenLayer1Size;
+
+	for (int i = 0; i < hiddenLayer2Size; ++i)
+		for (int j = 0; j < outputSize; ++j)
+			outputLayerWeight[i * outputSize + j] = (i == j) * ((rand() & 2) - 1) + ((float)rand() / RAND_MAX * 0.2 - 0.1) / hiddenLayer2Size;
+
+	for (int i = 0; i < hiddenMemSize; ++i)
+		hiddenMemParam[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenMemSize;
 
 	//PrintMatrixf32(hiddenLayer1Weight, hiddenLayer1Size, inputSize, "hiddenLayer1Weight");
 
@@ -159,6 +167,7 @@ int main()
 		memset(hiddenLayer1WeightGradients, 0, hiddenLayer1Size * inputSize * sizeof(float));
 		memset(hiddenLayer2WeightGradients, 0, hiddenLayer2Size * hiddenLayer1Size * sizeof(float));
 		memset(outputLayerWeightGradients, 0, outputSize * hiddenLayer2Size * sizeof(float));
+		memset(hiddenMemParamGradients, 0, hiddenMemSize * sizeof(float));
 
 		for (int batch = 0; batch < batchSize; ++batch)
 		{
@@ -172,8 +181,20 @@ int main()
 				sqrDistances[step] = x * x + y * y;
 				//sqrDistances[step] = x + y;
 
+				/*if (step == 0)
+				{
+					// set the extra inputs to hiddenMemParam
+					memcpy(inputs + numInputs, hiddenMemParam, hiddenMemSize * sizeof(float));
+				}
+				else
+				{
+					// set the extra inputs to the previous output
+					memcpy(inputs + step * inputSize + numInputs, outputs + (step - 1) * outputSize + numOutputs, hiddenMemSize * sizeof(float));
+				}*/
+				
 				// set the extra inputs to 0
-				memset(inputs + step * inputSize + numInputs, 0, hiddenMemSize * sizeof(float));
+				//memset(inputs + step * inputSize + numInputs, 0, hiddenMemSize * sizeof(float));
+				*(inputs + step * inputSize + numInputs) = 100;
 
 				//PrintMatrixf32(inputs + step * inputSize, 1, inputSize, "inputs");
 
@@ -238,6 +259,17 @@ int main()
 
 				outputGradients[step * outputSize] = error;
 
+				/*if (step + 1 == maxSteps)
+				{
+					// set the extra output gradients to 0
+					memset(outputGradients + step * outputSize + numOutputs, 0, hiddenMemSize * sizeof(float));
+				}
+				else
+				{
+					// set the extra output gradients to the previous input gradients
+					memcpy(outputGradients + step * outputSize + numOutputs, inputGradients + (step + 1) * inputSize + numInputs, hiddenMemSize * sizeof(float));
+				}*/
+
 				// set the extra output gradients to 0
 				memset(outputGradients + step * outputSize + numOutputs, 0, hiddenMemSize * sizeof(float));
 
@@ -299,7 +331,7 @@ int main()
 				//PrintMatrixf32(hiddenLayer1Gradients + step * hiddenLayer1Size, 1, hiddenLayer1Size, "hiddenLayer1Gradients");
 				//PrintMatrixf32(hiddenLayer2WeightGradients, hiddenLayer2Size, hiddenLayer1Size, "hiddenLayer2WeightGradients");
 
-				/*cpuSgemmStridedBatched
+				cpuSgemmStridedBatched
 				(
 					true, false,
 					inputSize, 1, hiddenLayer1Size,
@@ -309,7 +341,7 @@ int main()
 					&beta,
 					inputGradients + step * inputSize, inputSize, 0,
 					1
-				);*/
+				);
 
 				cpuSgemmStridedBatched
 				(
@@ -326,6 +358,9 @@ int main()
 				//PrintMatrixf32(inputGradients + step * inputSize, 1, inputSize, "inputGradients");
 				//PrintMatrixf32(hiddenLayer1WeightGradients, hiddenLayer1Size, inputSize, "hiddenLayer1WeightGradients");
 			}
+
+			// extracting the last mem gradients
+			//cpuSaxpy(hiddenMemSize, 1, inputGradients + numInputs, hiddenLayer1Gradients);
 		}
 
 		printf("averageError: %f\n", averageError / (maxSteps * batchSize));
