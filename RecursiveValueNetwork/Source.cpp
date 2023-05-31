@@ -68,7 +68,7 @@ int main()
 {
 	srand(time(nullptr));
 
-	const float alpha = 0.1f;
+	const float alpha = 0.01f;
 	const float beta = 0;
 	const float learningRate = 1.0f;
 
@@ -87,12 +87,14 @@ int main()
 	const int maxEpisodes = 1000;
 	const int maxSteps = 10;
 	const int batchSize = 32;
-
+	const int numInputs = 2;
+	const int numOutputs = 1;
 	const int hiddenMemSize = 16;
-	const int inputSize = 2;
+
+	const int inputSize = numInputs + hiddenMemSize;
 	const int hiddenLayer1Size = 64;
 	const int hiddenLayer2Size = 32;
-	const int outputSize = 1;
+	const int outputSize = numOutputs + hiddenMemSize;
 
 	float x, y;
 	float sqrDistances[maxSteps];
@@ -170,6 +172,9 @@ int main()
 				sqrDistances[step] = x * x + y * y;
 				//sqrDistances[step] = x + y;
 
+				// set the extra inputs to 0
+				memset(inputs + step * inputSize + numInputs, 0, hiddenMemSize * sizeof(float));
+
 				//PrintMatrixf32(inputs + step * inputSize, 1, inputSize, "inputs");
 
 				cpuSgemmStridedBatched
@@ -232,6 +237,9 @@ int main()
 				averageError += abs(error);
 
 				outputGradients[step * outputSize] = error;
+
+				// set the extra output gradients to 0
+				memset(outputGradients + step * outputSize + numOutputs, 0, hiddenMemSize * sizeof(float));
 
 				cpuSgemmStridedBatched
 				(
