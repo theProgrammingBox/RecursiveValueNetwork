@@ -56,17 +56,25 @@ void PrintMatrixf32(float* arr, uint32_t rows, uint32_t cols, const char* label)
 	printf("\n");
 }
 
+float InvSqrt(float number)
+{
+	long i = 0x5F1FFFF9 - (*(long*)&number >> 1);
+	float tmp = *(float*)&i;
+	return tmp;
+	return tmp * 0.703952253f * (2.38924456f - number * tmp * tmp);
+}
+
 int main()
 {
 	srand(time(nullptr));
 
-	const float alpha = 1;
+	const float alpha = 0.1f;
 	const float beta = 0;
 	const float learningRate = 1.0f;
 
 	const float beta1 = 0.9f;
 	const float beta2 = 0.999f;
-	const float epsilon = 1e-8f;
+	const float epsilon = 1e-16f;
 
 	const float spawnRange = 10;
 	const float halfSpawnRange = spawnRange * 0.5f;
@@ -314,17 +322,34 @@ int main()
 
 		printf("averageError: %f\n", averageError / (maxSteps * batchSize));
 
-		// for every weight, calculate the mean/varience gradient
 		for (int i = 0; i < outputSize * hiddenLayer2Size; i++)
 		{
 			float gradient = outputLayerWeightGradients[i] / (maxSteps * batchSize);
 			outputLayerWeightGradientMean[i] = beta1 * outputLayerWeightGradientMean[i] + (1 - beta1) * gradient;
 			outputLayerWeightGradientVariance[i] = beta2 * outputLayerWeightGradientVariance[i] + (1 - beta2) * gradient * gradient;
-
 			float correctedMean = outputLayerWeightGradientMean[i] / (1 - exponentiallyDecayedMean);
 			float correctedVariance = outputLayerWeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
+			outputLayerWeight[i] += learningRate * correctedMean * InvSqrt(correctedVariance + epsilon);
+		}
 
-			outputLayerWeight[i] += learningRate * correctedMean / (sqrt(correctedVariance) + epsilon);
+		for (int i = 0; i < hiddenLayer2Size * hiddenLayer1Size; i++)
+		{
+			float gradient = hiddenLayer2WeightGradients[i] / (maxSteps * batchSize);
+			hiddenLayer2WeightGradientMean[i] = beta1 * hiddenLayer2WeightGradientMean[i] + (1 - beta1) * gradient;
+			hiddenLayer2WeightGradientVariance[i] = beta2 * hiddenLayer2WeightGradientVariance[i] + (1 - beta2) * gradient * gradient;
+			float correctedMean = hiddenLayer2WeightGradientMean[i] / (1 - exponentiallyDecayedMean);
+			float correctedVariance = hiddenLayer2WeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
+			hiddenLayer2Weight[i] += learningRate * correctedMean * InvSqrt(correctedVariance + epsilon);
+		}
+
+		for (int i = 0; i < hiddenLayer1Size * inputSize; i++)
+		{
+			float gradient = hiddenLayer1WeightGradients[i] / (maxSteps * batchSize);
+			hiddenLayer1WeightGradientMean[i] = beta1 * hiddenLayer1WeightGradientMean[i] + (1 - beta1) * gradient;
+			hiddenLayer1WeightGradientVariance[i] = beta2 * hiddenLayer1WeightGradientVariance[i] + (1 - beta2) * gradient * gradient;
+			float correctedMean = hiddenLayer1WeightGradientMean[i] / (1 - exponentiallyDecayedMean);
+			float correctedVariance = hiddenLayer1WeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
+			hiddenLayer1Weight[i] += learningRate * correctedMean * InvSqrt(correctedVariance + epsilon);
 		}
 	}
 
