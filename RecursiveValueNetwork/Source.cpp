@@ -5,6 +5,7 @@ Important Lessons:
 - for deeper or more iterations in rnns, use larger batchsizes and smaller learning rates
 - not to sure if batchsize works because average usually decreases the variance of the gradients, sort of acting like smaller learning rates
 - more rnn iterations is basically like training a network with more layers
+- parameter initialization is very important, it helps speed up training and helps avoid local minima
 */
 
 void cpuSgemmStridedBatched(
@@ -69,6 +70,10 @@ float InvSqrt(float number)
 	float tmp = *(float*)&i;
 	return tmp;
 	return tmp * 0.703952253f * (2.38924456f - number * tmp * tmp);
+}
+
+void orthoganalInitialization(float* arr, int rows, int cols)
+{
 }
 
 int main()
