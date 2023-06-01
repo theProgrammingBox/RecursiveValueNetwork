@@ -96,12 +96,12 @@ int main()
 	const float halfMoveRange = moveRange * 0.5f;
 	const float moveRangeScalar = moveRange / RAND_MAX;
 
-	const int maxEpisodes = 1000;
+	const int maxEpisodes = 10000;
 	const int maxSteps = 16;
 	const int batchSize = 32;
+	const int hiddenMemSize = 16;
 	const int numInputs = 2;
 	const int numOutputs = 1;
-	const int hiddenMemSize = 16;
 
 	const int inputSize = numInputs + hiddenMemSize;
 	const int hiddenLayer1Size = 32;
@@ -183,14 +183,20 @@ int main()
 
 		for (int batch = 0; batch < batchSize; ++batch)
 		{
-			x = rand() * spawnRangeScalar - halfSpawnRange;
-			y = rand() * spawnRangeScalar - halfSpawnRange;
+			float score = 0;
+
+			/*x = rand() * spawnRangeScalar - halfSpawnRange;
+			y = rand() * spawnRangeScalar - halfSpawnRange;*/
 
 			for (int step = 0; step < maxSteps; ++step)
 			{
+				x = rand() & 1;
+				y = rand() & 1;
+				score += 2 * x + y;
+
 				inputs[step * inputSize] = x;
 				inputs[step * inputSize + 1] = y;
-				sqrDistances[step] = x * x + y * y;
+				sqrDistances[step] = score;
 				//sqrDistances[step] = x + y;
 
 				/**/if (step == 0)
