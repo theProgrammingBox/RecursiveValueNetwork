@@ -6,6 +6,7 @@ Important Lessons:
 - not to sure if batchsize works because average usually decreases the variance of the gradients, sort of acting like smaller learning rates
 - more rnn iterations is basically like training a network with more layers
 - parameter initialization is very important, it helps speed up training and helps avoid local minima
+- lower learning rate may speed up training a lot. There is a sort of sweet spot for learning rate, too high and it will diverge, too low and it will take forever to train
 */
 
 void cpuSgemmStridedBatched(
@@ -82,7 +83,7 @@ int main()
 
 	const float alpha = 1;
 	const float beta = 0;
-	const float learningRate = 0.0001f;
+	const float learningRate = 0.00002f;
 
 	const float beta1 = 0.9f;
 	const float beta2 = 0.999f;
@@ -163,8 +164,9 @@ int main()
 		for (int j = 0; j < outputSize; ++j)
 			outputLayerWeight[i * outputSize + j] = (i == j) * ((rand() & 2) - 1) + ((float)rand() / RAND_MAX * 0.2 - 0.1) / hiddenLayer2Size;
 
-	for (int i = 0; i < hiddenMemSize; ++i)
-		hiddenMemParam[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenMemSize;
+	/*for (int i = 0; i < hiddenMemSize; ++i)
+		hiddenMemParam[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenMemSize;*/
+	memset(hiddenMemParam, 0, hiddenMemSize * sizeof(float));
 
 	//PrintMatrixf32(hiddenLayer1Weight, hiddenLayer1Size, inputSize, "hiddenLayer1Weight");
 
