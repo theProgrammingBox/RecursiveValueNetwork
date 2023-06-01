@@ -98,14 +98,14 @@ int main()
 
 	const int maxEpisodes = 1000;
 	const int maxSteps = 16;
-	const int batchSize = 64;
+	const int batchSize = 32;
 	const int numInputs = 2;
 	const int numOutputs = 1;
-	const int hiddenMemSize = 8;
+	const int hiddenMemSize = 16;
 
 	const int inputSize = numInputs + hiddenMemSize;
-	const int hiddenLayer1Size = 64;
-	const int hiddenLayer2Size = 32;
+	const int hiddenLayer1Size = 32;
+	const int hiddenLayer2Size = 16;
 	const int outputSize = numOutputs + hiddenMemSize;
 
 	float x, y;
@@ -372,7 +372,7 @@ int main()
 			}
 
 			// extracting the last mem gradients
-			//cpuSaxpy(hiddenMemSize, 1, inputGradients + numInputs, hiddenLayer1Gradients);
+			cpuSaxpy(hiddenMemSize, 1, inputGradients + numInputs, hiddenMemParamGradients);
 		}
 
 		printf("averageError: %f\n", averageError / (maxSteps * batchSize));
@@ -412,6 +412,7 @@ int main()
 		cpuSaxpy(outputSize * hiddenLayer2Size, learningRate / (maxSteps * batchSize), outputLayerWeightGradients, outputLayerWeight);
 		cpuSaxpy(hiddenLayer2Size * hiddenLayer1Size, learningRate / (maxSteps * batchSize), hiddenLayer2WeightGradients, hiddenLayer2Weight);
 		cpuSaxpy(hiddenLayer1Size * inputSize, learningRate / (maxSteps * batchSize), hiddenLayer1WeightGradients, hiddenLayer1Weight);
+		cpuSaxpy(hiddenMemSize, learningRate / (batchSize), hiddenMemParamGradients, hiddenMemParam);
 	}
 
 	return 0;
