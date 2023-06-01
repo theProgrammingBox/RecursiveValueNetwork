@@ -386,7 +386,7 @@ int main()
 		printf("averageError: %f\n", averageError / (maxSteps * batchSize));
 
 		// adam
-		/*for (int i = 0; i < outputSize * hiddenLayer2Size; i++)
+		/**/for (int i = 0; i < outputSize * hiddenLayer2Size; i++)
 		{
 			float gradient = outputLayerWeightGradients[i] / (maxSteps * batchSize);
 			outputLayerWeightGradientMean[i] = beta1 * outputLayerWeightGradientMean[i] + (1 - beta1) * gradient;
@@ -414,13 +414,13 @@ int main()
 			float correctedMean = hiddenLayer1WeightGradientMean[i] / (1 - exponentiallyDecayedMean);
 			float correctedVariance = hiddenLayer1WeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
 			hiddenLayer1Weight[i] += learningRate * correctedMean * InvSqrt(correctedVariance + epsilon);
-		}*/
+		}
 
 		// sgd
-		cpuSaxpy(outputSize * hiddenLayer2Size, learningRate / (maxSteps * batchSize), outputLayerWeightGradients, outputLayerWeight);
+		/*cpuSaxpy(outputSize * hiddenLayer2Size, learningRate / (maxSteps * batchSize), outputLayerWeightGradients, outputLayerWeight);
 		cpuSaxpy(hiddenLayer2Size * hiddenLayer1Size, learningRate / (maxSteps * batchSize), hiddenLayer2WeightGradients, hiddenLayer2Weight);
 		cpuSaxpy(hiddenLayer1Size * inputSize, learningRate / (maxSteps * batchSize), hiddenLayer1WeightGradients, hiddenLayer1Weight);
-		cpuSaxpy(hiddenMemSize, learningRate / (batchSize), hiddenMemParamGradients, hiddenMemParam);
+		cpuSaxpy(hiddenMemSize, learningRate / (batchSize), hiddenMemParamGradients, hiddenMemParam);*/
 	}
 
 	return 0;
