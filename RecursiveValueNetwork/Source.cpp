@@ -7,6 +7,12 @@ Important Lessons:
 - more rnn iterations is basically like training a network with more layers
 - parameter initialization is very important, it helps speed up training and helps avoid local minima
 - lower learning rate may speed up training a lot. There is a sort of sweet spot for learning rate, too high and it will diverge, too low and it will take forever to train
+- adam doesn't desend as extremely as gradient descent, may be better for certain problems
+- pros of adam: less parameter tuning required due to adaptive gradient step for each parameter
+- pros of gradient descent: if you know the optimal learning rate, it will converge faster than adam
+- adam deals with first and second moment of the gradient.
+(instead of variance, it is more like an uncentered variance, allowing small gradients to have a larger effect and vice versa)
+(different to centered variance, which is the average of the squared differences from the mean)
 */
 
 void cpuSgemmStridedBatched(
@@ -83,7 +89,7 @@ int main()
 
 	const float alpha = 1;
 	const float beta = 0;
-	const float learningRate = 0.00002f;
+	const float learningRate = 0.00001f;
 
 	const float beta1 = 0.9f;
 	const float beta2 = 0.999f;
@@ -97,7 +103,7 @@ int main()
 	const float halfMoveRange = moveRange * 0.5f;
 	const float moveRangeScalar = moveRange / RAND_MAX;
 
-	const int maxEpisodes = 10000;
+	const int maxEpisodes = 100000;
 	const int maxSteps = 16;
 	const int batchSize = 32;
 	const int hiddenMemSize = 16;
@@ -105,8 +111,8 @@ int main()
 	const int numOutputs = 1;
 
 	const int inputSize = numInputs + hiddenMemSize;
-	const int hiddenLayer1Size = 32;
-	const int hiddenLayer2Size = 16;
+	const int hiddenLayer1Size = 64;
+	const int hiddenLayer2Size = 32;
 	const int outputSize = numOutputs + hiddenMemSize;
 
 	float x, y;
@@ -164,9 +170,9 @@ int main()
 		for (int j = 0; j < outputSize; ++j)
 			outputLayerWeight[i * outputSize + j] = (i == j) * ((rand() & 2) - 1) + ((float)rand() / RAND_MAX * 0.2 - 0.1) / hiddenLayer2Size;
 
-	/*for (int i = 0; i < hiddenMemSize; ++i)
-		hiddenMemParam[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenMemSize;*/
-	memset(hiddenMemParam, 0, hiddenMemSize * sizeof(float));
+	for (int i = 0; i < hiddenMemSize; ++i)
+		hiddenMemParam[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenMemSize;
+	//memset(hiddenMemParam, 0, hiddenMemSize * sizeof(float));
 
 	//PrintMatrixf32(hiddenLayer1Weight, hiddenLayer1Size, inputSize, "hiddenLayer1Weight");
 
@@ -390,9 +396,12 @@ int main()
 		{
 			float gradient = outputLayerWeightGradients[i] / (maxSteps * batchSize);
 			outputLayerWeightGradientMean[i] = beta1 * outputLayerWeightGradientMean[i] + (1 - beta1) * gradient;
+			/*float delta = gradient - outputLayerWeightGradientMean[i];
+			outputLayerWeightGradientVariance[i] = beta2 * outputLayerWeightGradientVariance[i] + (1 - beta2) * delta * delta;*/
 			outputLayerWeightGradientVariance[i] = beta2 * outputLayerWeightGradientVariance[i] + (1 - beta2) * gradient * gradient;
 			float correctedMean = outputLayerWeightGradientMean[i] / (1 - exponentiallyDecayedMean);
 			float correctedVariance = outputLayerWeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
+			 //outputLayerWeight[i] += learningRate * (gradient - correctedMean) * InvSqrt(correctedVariance + epsilon);
 			outputLayerWeight[i] += learningRate * correctedMean * InvSqrt(correctedVariance + epsilon);
 		}
 
@@ -400,9 +409,12 @@ int main()
 		{
 			float gradient = hiddenLayer2WeightGradients[i] / (maxSteps * batchSize);
 			hiddenLayer2WeightGradientMean[i] = beta1 * hiddenLayer2WeightGradientMean[i] + (1 - beta1) * gradient;
+			/*float delta = gradient - hiddenLayer2WeightGradientMean[i];
+			hiddenLayer2WeightGradientVariance[i] = beta2 * hiddenLayer2WeightGradientVariance[i] + (1 - beta2) * delta * delta;*/
 			hiddenLayer2WeightGradientVariance[i] = beta2 * hiddenLayer2WeightGradientVariance[i] + (1 - beta2) * gradient * gradient;
 			float correctedMean = hiddenLayer2WeightGradientMean[i] / (1 - exponentiallyDecayedMean);
 			float correctedVariance = hiddenLayer2WeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
+			//hiddenLayer2Weight[i] += learningRate * (gradient - correctedMean) * InvSqrt(correctedVariance + epsilon);
 			hiddenLayer2Weight[i] += learningRate * correctedMean * InvSqrt(correctedVariance + epsilon);
 		}
 
@@ -410,9 +422,12 @@ int main()
 		{
 			float gradient = hiddenLayer1WeightGradients[i] / (maxSteps * batchSize);
 			hiddenLayer1WeightGradientMean[i] = beta1 * hiddenLayer1WeightGradientMean[i] + (1 - beta1) * gradient;
+			/*float delta = gradient - hiddenLayer1WeightGradientMean[i];
+			hiddenLayer1WeightGradientVariance[i] = beta2 * hiddenLayer1WeightGradientVariance[i] + (1 - beta2) * delta * delta;*/
 			hiddenLayer1WeightGradientVariance[i] = beta2 * hiddenLayer1WeightGradientVariance[i] + (1 - beta2) * gradient * gradient;
 			float correctedMean = hiddenLayer1WeightGradientMean[i] / (1 - exponentiallyDecayedMean);
 			float correctedVariance = hiddenLayer1WeightGradientVariance[i] / (1 - exponentiallyDecayedVariance);
+			//hiddenLayer1Weight[i] += learningRate * (gradient - correctedMean) * InvSqrt(correctedVariance + epsilon);
 			hiddenLayer1Weight[i] += learningRate * correctedMean * InvSqrt(correctedVariance + epsilon);
 		}
 
@@ -420,7 +435,8 @@ int main()
 		/*cpuSaxpy(outputSize * hiddenLayer2Size, learningRate / (maxSteps * batchSize), outputLayerWeightGradients, outputLayerWeight);
 		cpuSaxpy(hiddenLayer2Size * hiddenLayer1Size, learningRate / (maxSteps * batchSize), hiddenLayer2WeightGradients, hiddenLayer2Weight);
 		cpuSaxpy(hiddenLayer1Size * inputSize, learningRate / (maxSteps * batchSize), hiddenLayer1WeightGradients, hiddenLayer1Weight);
-		cpuSaxpy(hiddenMemSize, learningRate / (batchSize), hiddenMemParamGradients, hiddenMemParam);*/
+		cpuSaxpy(hiddenMemSize, learningRate / (batchSize), hiddenMemParamGradients, hiddenMemParam);
+		*/
 	}
 
 	return 0;
