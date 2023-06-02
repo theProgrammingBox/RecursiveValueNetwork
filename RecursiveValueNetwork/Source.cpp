@@ -97,15 +97,15 @@ int main()
 
 	const float alpha = 1;
 	const float beta = 0;
-	const float learningRate = 0.00006f;
+	const float learningRate = 0.0001f;
 
 	const float beta1 = 0.9f;
 	const float beta2 = 0.9f;
 	const float epsilon = 1e-16f;
 
 	const int maxEpisodes = 100000;
-	const int maxSteps = 30;
-	const int batchSize = 16;
+	const int maxSteps = 32;
+	const int batchSize = 32;
 	const int hiddenMemSize = 16;
 	const int numInputs = 2;
 	const int numOutputs = 1;
@@ -174,8 +174,6 @@ int main()
 		for (int j = 0; j < outputSize; ++j)
 			outputLayerWeight[i * outputSize + j] = (i == j);
 
-	/*for (int i = 0; i < hiddenMemSize; ++i)
-		hiddenMemParam[i] = ((float)rand() / RAND_MAX - 0.5) / hiddenMemSize;*/
 	memset(hiddenMemParam, 0, hiddenMemSize * sizeof(float));
 
 	//PrintMatrixf32(hiddenLayer1Weight, hiddenLayer1Size, inputSize, "hiddenLayer1Weight");
