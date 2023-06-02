@@ -99,7 +99,7 @@ int main()
 	const float learningRate = 0.0001f;
 
 	const float beta1 = 0.9f;
-	const float beta2 = 0.9f;
+	const float beta2 = 0.999f;
 	const float epsilon = 1e-16f;
 
 	const int maxEpisodes = 100000;
