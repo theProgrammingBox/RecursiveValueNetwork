@@ -21,6 +21,7 @@ Important Lessons:
 - sometimes, learning rate or batch size may be lower then it needs to be
 - sometimes, it may be too stable, try decreasing batch size
 - sometimes, it may be too unstable, try increasing batch size
+- clipped relu and clipped -1 to 1 doesn't work as well as relu
 */
 
 void cpuSgemmStridedBatched(
